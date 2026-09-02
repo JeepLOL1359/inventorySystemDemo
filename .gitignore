@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Virtual Environments
+venv/
+.env
+env/
+
+# Build & System Files
+dist/
+build/
+.DS_Store   
