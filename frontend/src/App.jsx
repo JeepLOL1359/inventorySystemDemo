@@ -9,14 +9,16 @@ import NotFound from './pages/NotFound';
 export default function App() {
   return (
     <Router>
-      <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
+      <div className="app-container">
         <Navbar />
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/items" element={<ItemList />} />
-          <Route path="/add" element={<AddItem />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <main className="main-content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/items" element={<ItemList />} />
+            <Route path="/add" element={<AddItem />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
       </div>
     </Router>
   );

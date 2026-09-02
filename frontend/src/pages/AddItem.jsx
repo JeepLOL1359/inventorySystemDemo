@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-
-const API_URL = 'http://127.0.0.1:8000';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, PlusCircle, AlertCircle } from 'lucide-react';
+import { createItem, getCategories } from '../services/inventoryService';
 
 export default function AddItem() {
   const navigate = useNavigate();
@@ -13,6 +13,8 @@ export default function AddItem() {
     price: 0,
     category: '',
   });
+  const [customCategory, setCustomCategory] = useState('');
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,9 +24,11 @@ export default function AddItem() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_URL}/categories`);
-      const data = await response.json();
-      setCategories(data.categories);
+      const cats = await getCategories();
+      setCategories(cats || []);
+      if (cats && cats.length > 0) {
+        setFormData(prev => ({ ...prev, category: cats[0] }));
+      }
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
@@ -34,120 +38,224 @@ export default function AddItem() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'quantity' || name === 'price' ? parseFloat(value) : value,
+      [name]: name === 'quantity' ? parseInt(value) || 0 : 
+              name === 'price' ? parseFloat(value) || 0 : value,
     }));
+  };
+
+  const handleCategorySelectChange = (e) => {
+    const val = e.target.value;
+    if (val === '__custom__') {
+      setIsCustomCategory(true);
+      setFormData(prev => ({ ...prev, category: '' }));
+    } else {
+      setIsCustomCategory(false);
+      setFormData(prev => ({ ...prev, category: val }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.category) {
-      setError('Name and category are required');
+    setError('');
+
+    const targetCategory = isCustomCategory ? customCategory.trim() : formData.category.trim();
+
+    if (!formData.name.trim()) {
+      setError('Product name is required.');
+      return;
+    }
+
+    if (!targetCategory) {
+      setError('Please select or specify a category.');
+      return;
+    }
+
+    if (formData.quantity < 0) {
+      setError('Quantity cannot be negative.');
+      return;
+    }
+
+    if (formData.price < 0) {
+      setError('Price cannot be negative.');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+      await createItem({
+        ...formData,
+        name: formData.name.trim(),
+        category: targetCategory,
       });
 
-      if (!response.ok) throw new Error('Failed to create item');
-      
-      // Redirect to items list
       navigate('/items');
     } catch (err) {
-      setError('Error creating item: ' + err.message);
+      console.error('Error creating item:', err);
+      setError(err.message || 'Failed to create product. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 20px' }}>
-      <h2 style={{ marginBottom: '30px' }}>➕ Add New Item</h2>
+    <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+      {/* Header */}
+      <div className="page-header" style={{ marginBottom: '20px' }}>
+        <div>
+          <Link 
+            to="/items" 
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              fontSize: '13px', 
+              color: 'var(--text-secondary)', 
+              fontWeight: 500,
+              marginBottom: '8px'
+            }}
+          >
+            <ArrowLeft size={14} />
+            <span>Back to Inventory</span>
+          </Link>
+          <h1 className="page-title">Add New Product</h1>
+          <p className="page-subtitle">Enter item specifications to register it in inventory</p>
+        </div>
+      </div>
 
       {error && (
-        <div style={{ backgroundColor: '#fee', border: '1px solid #fcc', color: '#c33', padding: '12px', borderRadius: '4px', marginBottom: '20px' }}>
-          {error}
+        <div className="alert-error">
+          <AlertCircle size={16} />
+          <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px' }}>
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Item Name *</label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Description</label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleChange}
-            rows={4}
-            style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Quantity</label>
+      {/* Form Card */}
+      <div className="card">
+        <form onSubmit={handleSubmit} className="card-body">
+          {/* Item Name */}
+          <div className="form-group">
+            <label className="form-label">
+              Product Name <span className="req">*</span>
+            </label>
             <input
-              type="number"
-              name="quantity"
-              value={formData.quantity}
+              type="text"
+              name="name"
+              placeholder="e.g. Ergonomic Office Chair"
+              value={formData.name}
               onChange={handleChange}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+              required
+              className="form-input"
             />
           </div>
 
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Price</label>
-            <input
-              type="number"
-              name="price"
-              value={formData.price}
+          {/* Category */}
+          <div className="form-group">
+            <label className="form-label">
+              Category <span className="req">*</span>
+            </label>
+            {!isCustomCategory ? (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleCategorySelectChange}
+                  className="form-select"
+                >
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="__custom__">+ Add Custom Category...</option>
+                </select>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Enter new category name..."
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className="form-input"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setIsCustomCategory(false);
+                    if (categories.length > 0) {
+                      setFormData(prev => ({ ...prev, category: categories[0] }));
+                    }
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Quantity and Price Grid */}
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Initial Quantity</label>
+              <input
+                type="number"
+                name="quantity"
+                min="0"
+                value={formData.quantity}
+                onChange={handleChange}
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Unit Price ($)</label>
+              <input
+                type="number"
+                name="price"
+                step="0.01"
+                min="0"
+                value={formData.price}
+                onChange={handleChange}
+                className="form-input"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Description (Optional)</label>
+            <textarea
+              name="description"
+              placeholder="Model number, specifications, or location notes..."
+              value={formData.description}
               onChange={handleChange}
-              step="0.01"
-              style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+              rows={3}
+              className="form-textarea"
             />
           </div>
-        </div>
 
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Category *</label>
-          <select
-            name="category"
-            value={formData.category}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
-          >
-            <option value="">Select a category</option>
-            {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ width: '100%', padding: '12px', backgroundColor: loading ? '#95a5a6' : '#27ae60', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
-        >
-          {loading ? 'Creating...' : 'Create Item'}
-        </button>
-      </form>
+          {/* Form Actions */}
+          <div className="form-actions">
+            <Link to="/items" className="btn btn-secondary">
+              Cancel
+            </Link>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-emerald"
+            >
+              {loading ? (
+                <span>Registering...</span>
+              ) : (
+                <>
+                  <PlusCircle size={16} />
+                  <span>Register Item</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
